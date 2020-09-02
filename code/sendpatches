@@ -1,0 +1,57 @@
+#!/bin/sh
+# example description file:
+# To: nyh@il.ibm.com
+# To: nyh@math.technion.ac.il
+# Cc: nyh@il.ibm.com
+# from "Nadav Har'El" <nyh@il.ibm.com>
+# name Nested VMX, v5
+# 
+# long multiline description
+
+
+case $# in
+0) echo "Usage: $0 description patchfiles..."; exit 1;;
+esac
+
+headers=
+
+while read line
+do
+	case $line in
+	"") rest="`cat`"; break;;
+	To:*|Cc:*|Bcc:*) headers="$line
+$headers";;
+	from\ *) from=`expr "$line" : "from \(.*\)"`;;
+	name\ *) name=`expr "$line" : "name \(.*\)"`;;
+	esac
+done <$1
+
+shift
+
+email=`expr "$from" : ".*<\(.*\)>"`
+messageid="<`date +%s`-$email>"
+
+# heading message
+echo "sending heading message"
+# Sleep a bit to give the user a chance to change his mind...
+sleep 30
+(echo -n "$headers"
+echo "From: $from"
+echo "Message-ID: $messageid"
+echo "Subject: [PATCH 0/$#] $name"
+echo "$rest") |
+awk '/^DIFFSTAT$/ {system("diffstat -p1 -w70 '"$*"'"); next} {print}' |
+sendmail -t -f "$from"
+
+# following messages
+for i
+do
+	# Sleep a bit to give the mail server some chance to send out the mails
+	# in intended order.
+	sleep 30
+	echo "sending $i"
+	(echo -n "$headers"
+	echo "From: $from"
+	echo "References: $messageid"
+	cat $i) | sendmail -t -f "$from"
+done

@@ -1,0 +1,447 @@
+<!-- Creator     : groff version 1.22.1 -->
+<!-- CreationDate: Thu Feb 21 12:25:13 2013 -->
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+"http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta name="generator" content="groff -Thtml, see www.gnu.org">
+<meta http-equiv="Content-Type" content="text/html; charset=US-ASCII">
+<meta name="Content-Style" content="text/css">
+<style type="text/css">
+       p       { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       pre     { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       table   { margin-top: 0; margin-bottom: 0; vertical-align: top }
+       h1      { text-align: center }
+</style>
+<title>PO</title>
+
+</head>
+<body>
+
+<h1 align="center">PO</h1>
+
+<a href="#NAME">NAME</a><br>
+<a href="#SYNOPSIS">SYNOPSIS</a><br>
+<a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#SOURCE CODE ANNOTATIONS">SOURCE CODE ANNOTATIONS</a><br>
+<a href="#CONFIGURATION FILE">CONFIGURATION FILE</a><br>
+<a href="#FILES">FILES</a><br>
+<a href="#EXIT STATUS">EXIT STATUS</a><br>
+<a href="#COPYRIGHT">COPYRIGHT</a><br>
+<a href="#ACKNOWLEDGMENTS">ACKNOWLEDGMENTS</a><br>
+<a href="#SEE ALSO">SEE ALSO</a><br>
+
+<hr>
+
+
+<h2>NAME
+<a name="NAME"></a>
+</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">po - Patchouli,
+tool for generating patches from annotated source code.</p>
+
+<h2>SYNOPSIS
+<a name="SYNOPSIS"></a>
+</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em"><b>po <br>
+po &minus;C <br>
+po &minus;c</b> <i>level</i> <b><br>
+po &minus;b</b> <i>name</i> <b><br>
+po &minus;A</b> <i>level</i> <b><br>
+po &minus;p</b></p>
+
+<h2>DESCRIPTION
+<a name="DESCRIPTION"></a>
+</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">Patchouli is a
+tool for easily creating and maintaining a set of source
+code patches, while continuing to normally edit, compile,
+and do version control of the project as one whole.</p>
+
+<p style="margin-left:11%; margin-top: 1em">The basic idea
+behind <b>Patchouli</b> is that as the source code is
+modified, the programmer annotates each modification as
+belonging to a certain patch (see SOURCE CODE ANNOTATIONS
+below). The programmer can continue to normally view, edit,
+compile, and run the source code with its embedded annotated
+modifications. Additionally, the programmer specifies the
+order of these annotations and can describe them (see
+CONFIGURATION FILE below).</p>
+
+<p style="margin-left:11%; margin-top: 1em">Then at any
+point, the entire patch set can be created automatically
+from these annotations, by running the <b>po</b> tool
+described in this manual.</p>
+
+<p style="margin-left:11%; margin-top: 1em">Patchouli is
+especially useful in projects where maintainers expect big
+changes to be broken down to many small patches, each easier
+to explain and to review. The programmer would still like to
+work on the source code as a whole (and not on individual
+patches), and to be able to easily regenerate the patch set
+if they need to be resubmitted (e.g., after comments from
+the maintainer, changes to the base project, and so on).</p>
+
+<h2>SOURCE CODE ANNOTATIONS
+<a name="SOURCE CODE ANNOTATIONS"></a>
+</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">As explained
+above, Patchouli uses <i>annotations</i> inserted in the
+source code which mark modifications, and say which
+modification belongs to which patch.</p>
+
+<p style="margin-left:11%; margin-top: 1em">The annotations
+not only mark the modifications, they also need to ensure
+that the code can be compiled as if all the patches have
+been applied to it. I.e., lines that are marked as added
+need to be compiled in, while lines that are marked as
+deleted need to be ignored. The annotations format shown
+below indeed satisfies this requirement.</p>
+
+<p style="margin-left:11%; margin-top: 1em">Patchouli
+currently supports annotations using C preprocessor
+directives. These are useful for C and C++ language code.
+The following annotations are supported. In the code
+examples below, ordinary text is pre-modification code,
+while the bold text is the new source-code lines and their
+annotation. <br>
+Add lines (in patch named &quot;comment&quot;):</p>
+
+<p style="margin-left:22%; margin-top: 1em">int square(int
+n){ <b><br>
+#if 1 /* patchouli comment */ <br>
+/* square n */ <br>
+#endif</b> <br>
+return n*n; <br>
+}</p>
+
+<p style="margin-left:11%;">Delete lines:</p>
+
+<p style="margin-left:22%; margin-top: 1em">int triple(int
+n){ <b><br>
+#if 0 /* patchouli remove printouts */ <br>
+printf(&quot;tripling %d0, n); <br>
+#endif</b> <br>
+return 3*n; <br>
+}</p>
+
+<p style="margin-left:11%;">Replace lines:</p>
+
+<p style="margin-left:22%; margin-top: 1em">One can replace
+lines with two separate annotations, marking the deletion of
+the old lines and then marking the new lines, but a more
+compact (and natural) representation is available:</p>
+
+<p style="margin-left:22%; margin-top: 1em">int square(int
+n){ <b><br>
+#if 1 /* patchouli algorithm */ <br>
+return n*n; <br>
+#else</b> <br>
+return 2*n; <b><br>
+#endif</b> <br>
+}</p>
+
+<p style="margin-left:22%; margin-top: 1em">Or,
+alternatively,</p>
+
+<p style="margin-left:22%; margin-top: 1em">int square(int
+n){ <b><br>
+#if 0 /* patchouli algorithm */</b> <br>
+return 2*n; <b><br>
+#else <br>
+return n*n; <br>
+#endif</b> <br>
+}</p>
+
+<p style="margin-left:11%;">Undone modifications:</p>
+
+<p style="margin-left:22%; margin-top: 1em">In some cases,
+it is necessary for one patch to make modifications which
+are later undone (or further modified) by a second patch.
+This is needed if, for example, the program needs to compile
+after each individual patch is applied. Such transient
+modifications can be specified using <i>nested</i>
+annotations:</p>
+
+<p style="margin-left:22%; margin-top: 1em"><b>#if 0 /*
+patchouli patch2 */ <br>
+#if 1 /* patchouli patch1 */ <br>
+/* this code is added in patch1, but removed again in patch2
+*/ <br>
+#endif <br>
+#endif</b></p>
+
+<p style="margin-left:22%; margin-top: 1em">Note how the
+outer annotation describes the later modification: The the
+line is removed in patch2 and therefore doesn&rsquo;t exist
+in the final patched code, so the outer &quot;#if 0&quot;
+makes sure it isn&rsquo;t compiled.</p>
+
+<p style="margin-left:22%; margin-top: 1em">As another
+example, the following annotations replace the function name
+&quot;try1&quot; in the original code with &quot;try2&quot;
+in the first patch, and then again renames it to
+&quot;try3&quot; in the second patch:</p>
+
+<p style="margin-left:22%; margin-top: 1em"><b>#if 0 /*
+patchouli second */ <br>
+#if 0 /* patchouli first */</b> <br>
+int try1(){ <b><br>
+#else <br>
+int try2(){ <br>
+#endif <br>
+#else <br>
+int try3(){ <br>
+#endif</b></p>
+
+<p style="margin-left:11%;">Nested modifications:</p>
+
+<p style="margin-left:22%; margin-top: 1em">Another use for
+nested annotations is a shortcut for adding new lines in the
+middle of a block of lines already added by a previous
+modification. For example, consider we already have a patch
+adding two lines:</p>
+
+<p style="margin-left:22%; margin-top: 1em"><b>#if 1 /*
+patchouli patch1 */ <br>
+line1 <br>
+line2 <br>
+#endif</b></p>
+
+<p style="margin-left:22%; margin-top: 1em">And now we want
+to create a second patch, patch2, which adds a new line
+between these &quot;line1&quot; and &quot;line2&quot;. The
+long way is to split up the original annotation:</p>
+
+<p style="margin-left:22%; margin-top: 1em"><b>#if 1 /*
+patchouli patch1 */ <br>
+line1 <br>
+#endif <br>
+#if 1 /* patchouli patch2 */ <br>
+added in the middle <br>
+#endif <br>
+#if 1 /* patchouli patch1 */ <br>
+line2 <br>
+#endif</b></p>
+
+<p style="margin-left:22%; margin-top: 1em">We can use
+nested annotations for a shorter and perhaps more readable
+description of the same change:</p>
+
+<p style="margin-left:22%; margin-top: 1em"><b>#if 1 /*
+patchouli patch1 */ <br>
+line1 <br>
+#if 1 /* patchouli patch2 */ <br>
+added in the middle <br>
+#endif <br>
+line2 <br>
+#endif</b></p>
+
+<p style="margin-left:22%; margin-top: 1em">Note that
+currently, <b>po</b> is limited only to a single level of
+annotation nesting (i.e., the above examples are supported,
+but deeper level of nesting isn&rsquo;t).</p>
+
+<p style="margin-left:11%;">Modifying C preprocessor
+directives:</p>
+
+<p style="margin-left:22%; margin-top: 1em">Above we showed
+the usual way of annotating changes, using C preprocessor
+directives. Unfortunately, if the change we&rsquo;re trying
+to annotate is a single #if, #else, #elif or #endif, we
+can&rsquo;t annotate it with our usual annotations. As an
+example, consider the following ill-attempt to add an
+&quot;#else&quot; to an existing #if:</p>
+
+<p style="margin-left:22%; margin-top: 1em">#if something
+<br>
+dosomething; <b><br>
+#if 1 /* patchouli patch */ <br>
+#else <br>
+somethingelse; <br>
+#endif</b> <br>
+#endif</p>
+
+<p style="margin-left:22%; margin-top: 1em">This is wring,
+because when the compiler reads this code, it wrongly treats
+the &quot;#else&quot; as referring to the Patchouli
+annotation, not the &quot;#if something&quot; it was
+supposed to refer to.</p>
+
+<p style="margin-left:22%; margin-top: 1em">Therefore, for
+this use-case we have an alternative annotation method,
+which uses a comment at the end of the line which marks its
+addition in some patch. The following is the right way to do
+what we tried to do above:</p>
+
+<p style="margin-left:22%; margin-top: 1em">#if something
+<br>
+dosomething; <b><br>
+#else/***patchouli patch***/ <br>
+#if 1 /* patchouli patch */ <br>
+somethingelse; <br>
+#endif</b> <br>
+#endif</p>
+
+<p style="margin-left:11%; margin-top: 1em">The patch names
+used in these annotations can be chosen arbitrarily, but
+they need to be also listed in the <b>PATCHOULI</b>
+configuration file, as described in the next section. Patch
+names may include any characters except slash
+(&quot;/&quot;), newline or null.</p>
+
+<p style="margin-left:11%; margin-top: 1em">In particular,
+patch names with spaces in them are fine. However, please
+note that leading or trailing spaces in the patch names are
+not considered part of the patch name, and are ignored, and
+in general extraneous white space in annotation lines are
+ignored. For example, the following lines, with
+&quot;_&quot; representing a space, all fine, and behave
+identically:</p>
+
+
+<p style="margin-left:11%; margin-top: 1em">#if_1_/*_patchouli_name_*/
+<br>
+#if_1_/*__patchouli_name_*/ <br>
+#if_1_/*_patchouli_name__*/ <br>
+#if_1_/*_patchouli__name_*/ <br>
+#if_1_/*patchouli_name*/ <br>
+#if_1/*_patchouli_name_*/</p>
+
+<h2>CONFIGURATION FILE
+<a name="CONFIGURATION FILE"></a>
+</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">The source code
+annotations described above determine which modification
+goes into which patch file, but to actually create these
+patch files, the <b>po</b> tool needs additional
+information, which should be written in a file called
+&quot;<b>PATCHOULI</b>&quot; in the top directory of the
+project, where <b>po</b> will be run.</p>
+
+<p style="margin-left:11%; margin-top: 1em">This section
+lists the various configuration commands available.
+Specifying at least one <b>patch</b> and at least one
+<b>file</b> is mandatory,</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="11%"></td>
+<td width="7%">
+
+
+<p><b>patch</b></p></td>
+<td width="4%"></td>
+<td width="78%">
+
+
+<p>po needs to know the <i>order</i> of the patches,
+because patch files refer to specific line numbers and to
+specific contexts, so the order in which they will be
+applied matters.</p></td></tr>
+</table>
+
+<p style="margin-left:22%; margin-top: 1em">The order of
+the <b>patch</b> commands in the PATCHOULI file determines
+the patch order. Each command specifies a patch name (the
+name used in the annotations), a one-line description of the
+patch and an optional long description. The descriptions are
+used when creating the patch files - the one-line
+description is used as the subject of the patch file
+(assuming it will be mailed), and the long description is
+put after the subject line, and before the actual content of
+the patch.</p>
+
+<p style="margin-left:22%; margin-top: 1em">A <b>patch</b>
+command is formatted like this:</p>
+
+<p style="margin-left:22%; margin-top: 1em"><b>patch</b>
+name: short description <br>
+first line of long description <br>
+second line of long description</p>
+
+<p style="margin-left:22%; margin-top: 1em">Each line in
+the long description must start with a whitespace, because
+the next line not starting with a whitespace is considered
+to start a new configuration command. In particular, even a
+blank line in the long description needs to be a line with a
+single white space, otherwise it is considered to end the
+descption.</p>
+
+<h2>FILES
+<a name="FILES"></a>
+</h2>
+
+
+
+<p style="margin-left:11%; margin-top: 1em">./PATCHOULI</p>
+
+<p style="margin-left:22%;">explain here</p>
+
+<p style="margin-left:11%;">0*.patch</p>
+
+<p style="margin-left:22%;">explain here</p>
+
+<p style="margin-left:11%;">.tmp-patch, .patchouli-level0,
+.git-*</p>
+
+<p style="margin-left:22%;">explain here</p>
+
+<h2>EXIT STATUS
+<a name="EXIT STATUS"></a>
+</h2>
+
+
+<h2>COPYRIGHT
+<a name="COPYRIGHT"></a>
+</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">Copyright (C)
+2010-2013 IBM Corp. Copyright (C) 2013 Nadav Har&rsquo;El
+&lt;nyh@math.technion.ac.il&gt;</p>
+
+<p style="margin-left:11%; margin-top: 1em">Patchouli is
+based on an original idea proposed by Abel Gordon.</p>
+
+<p style="margin-left:11%; margin-top: 1em">Patchouli is
+based on original source code written by Nadav Har&rsquo;El
+while an IBM employee. This code is copyright (C) 2010-2013
+IBM Corp., and is used in Patchouli with permission.
+However, IBM is not the owner or maintainer of this
+Patchouli, does not endorse it, or has any other connection
+with Patchouli. All comments, suggestions, questions or
+claims regarding Patchouli should be referred to Nadav
+Har&rsquo;El directly.</p>
+
+<p style="margin-left:11%; margin-top: 1em">Patchouli is
+free software, released under the Apache License v2. There
+is no warranty of any kind.</p>
+
+<h2>ACKNOWLEDGMENTS
+<a name="ACKNOWLEDGMENTS"></a>
+</h2>
+
+
+<h2>SEE ALSO
+<a name="SEE ALSO"></a>
+</h2>
+
+
+
+<p style="margin-left:11%; margin-top: 1em"><b>diff</b>(1),
+<b>patch</b>(1), <b>git</b>(1), <b>cpp</b>(1)</p>
+<hr>
+</body>
+</html>

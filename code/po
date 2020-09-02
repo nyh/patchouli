@@ -1,0 +1,582 @@
+#!/usr/bin/env perl
+#
+# Patchouli is a simple tool for extracting a set of patches from annotated
+# source code.
+#
+# Written by Nadav Har'El, May 2010, based on an original idea proposed by
+# Abel Gordon.
+#
+# Patchouli is based on original source code written by Nadav Har'El while an
+# IBM employee. This code is copyright (C) 2010-2013 IBM Corp., and is used
+# in Patchouli with permission. However, IBM is not the owner or maintainer of
+# Patchouli, does not endorse it, or has any other connection with Patchouli.
+# All comments, suggestions, contributions questions or claims regarding
+# Patchouli should be referred to Nadav Har'El directly.
+#
+# Patchouli is free software released under the Apache License v2.
+#
+# The basic idea behind Patchouli is that as the source code is modified,
+# new lines are "annotated" (see below) as belonging to a certain patch.
+# The source code is edited normally, and also compiled and run normally,
+# and then at any point (when the user is pleased with the current code) the
+# entire patch set can be created automatically.
+#
+# Patchouli is especially useful in projects where maintainers expect big
+# changes to be broken down to many small "stages", each easier to understand.
+# The programmer would still like to work on the source code as a whole.
+# Without Patchouli, creating these small patches normally involved a lot
+# of painstaking work, which has to be repeated every time the patches
+# need to be resubmitted (e.g., after comments from the maintainer, changes
+# to the base project, and so on).
+
+use strict;
+use IO::File;
+use File::Path qw(mkpath rmtree);
+use File::Basename;
+use Getopt::Std;
+
+my @files; # The list of current (annotated) source files
+my @base; # How to find the original source files
+my @patchnames; # Names of patches. The order is important.
+my @breaks; # Breaks of the patch sequence into sections.
+my @patchtitles; # Title of the patches named in patchnames.
+my @patchdescs; # Description of the patches named in patchnames.
+my $sig; # signature to put between patch description and the patch
+my $pref; # common prefix for all patch titles
+my $compilecheck; # What to run to verify that the source compiles correctly
+
+my $configerr = 0;
+# Read the "PATCHOULI" configuration file, describing the original files,
+# the modified files, and the patches we are supposed to extract from them.
+sub readrc {
+        my $filename = shift;
+	my $RC = new IO::File;
+	$RC->open($filename) or return 0;
+	my $inpatch = 0; # set to 1 if reading a patch description
+	while(<$RC>){
+		chomp;
+		if($inpatch){
+			# continue to read a patch description (each line of
+			# which must start with a whitespace)
+			if(/^\s+(.*)\s*$/o){
+				if(defined($patchdescs[$#patchnames])){
+					$patchdescs[$#patchnames]=
+					$patchdescs[$#patchnames]."\n".$1;
+				} else {
+					$patchdescs[$#patchnames]=$1;
+				}
+				next;
+			} else {
+				$inpatch=0; # no longer reading a description
+			}
+		}	
+                if(/^\s*#|^\s*$/o){
+			# ignore comments and whitespace
+		} elsif(/^\s*files\s+(.*)$/o){
+			push @files, split(/\s+/,$1);
+		} elsif(/^\s*file\s+(.*)$/o){
+			push @files, $1;
+		} elsif(/^include\s+(.*)\s*$/o){
+                        readrc($1) or warn "Could not include file '$1'\n";
+		} elsif(/^patch\s+([^:]*):\s+(.*)\s*$/o){
+			push @patchnames, $1;
+			$patchtitles[$#patchnames]=$2;
+			$inpatch = 1;
+		} elsif(/^base\s+(.*)\s*$/o){
+			@base = split(/\s+/, $1);
+		} elsif(/^sig\s+(.*)\s*$/o){
+			$sig = $1;
+		} elsif(/^pref\s+(.*)\s*$/o){
+			$pref = $1;
+		} elsif(/^compilecheck\s+(.*)\s*$/o){
+			$compilecheck = $1;
+		} elsif(/^break\s*$/o){
+			push @breaks, ($#patchnames+1);
+		} else {
+			warn "Error: Cannot parse $filename, line $.: '".$_."'\n";
+			$configerr=1;
+		}
+	}
+	$RC->close();
+}
+my $rcfile = "PATCHOULI";
+readrc($rcfile) or die "Error: Must have config file $rcfile.\n";
+
+### Do some additional sanity checking on the configuration:
+
+# Verify that all the listed files exist. Currently we do not deal with
+# patches involving deleting, renaming, or creating files - just modification
+# of existing files.
+foreach my $file (@files){
+	if(!-e $file){
+		warn "Error: Missing file $file\n";
+		$configerr=1;
+	}
+}
+
+# TODO: Warn against patches with empty descriptions or titles
+
+if($configerr){
+#	die "Exiting because of earlier configuration errors in $rcfile.\n";
+}
+
+# Define a patch number for each patch name, determined according to the order
+# in the config file (the first patch listed is number 1, the second 2, etc.).
+# If we encounter the same patch name twice, this is a configuration error
+my %patchnum;
+my $i=1;
+foreach (@patchnames) {
+	if(exists($patchnum{$_})){
+		die "Error: Patch named '$_' listed more than once.\n"
+	}
+	$patchnum{$_} = $i++;
+}
+
+############################################################################
+# Our current implementation of createallpatches, for creating all the patches,
+# is simple and relatively inefficient: It ends up reading the same files again
+# and again, writeing them again and again to temporary directories, and
+# running many external "diff" commands. Eventually we could be much smarter
+# and generate the unified diffs ourselves without writing any temporary files.
+# But for current use cases (of up to a few dozen patches and only a handful
+# of files modified), the current performance is acceptable.
+############################################################################
+
+# Create a source file as it is in the given patch-level. Patch-level 0 means
+# without any patches applied, patch-level i means after patches 1 through i
+# is applied,
+sub createpatchlevel {
+	my $infile = shift;	# input source file with annotations
+	my $outfile = shift;	# output source file
+	my $level = shift;	# desired patch-level
+	# When a line doesn't appear in a certain patch-level, we replace it
+	# by a blank line or delete it entirely. $blanklines=0 is useful for
+	# generating clean patches, while $blanklines=1 is useful if we want
+	# to keep the same line numbers as in the annotated source code - e.g.,
+	# to test compilation of a given patch-level.
+	my $blanklines = shift;
+	# The "leaveuntouched" option causes us to ignore (leave untouched) the
+	# annotations after the given patch level
+	my $leaveuntouched = shift;
+
+	my $inannotation=0; # inside annotated code.
+	my $show=1; # if in annotation, show or not show these lines.
+	# To correctly handle nested #if's, we need to track the current #if
+	# nesting level ($iflevel) and if inside an annotation, the nesting
+	# level at it started ($endlevel).
+	# Note that we assume #if's are nested correctly, and that a patch
+	# piece (a piece of code starting with #if .. /* patchouli ... */
+	# and ending with #endif) may contain a nested #if/...#endif but not
+	# only half of one.
+	my $iflevel=0;
+	my $endlevel;
+	# Support for nested annotations, needed to annotate lines which are
+	# added in one patch, but then changed or deleted in a later patch.
+	# Currently we support one level of nested annotations (to support
+	# more, we would need here a stack, not one variable).
+	my $nestedendlevel=-1;
+	my $nestedshow;
+
+	my $in = new IO::File;
+	$in->open($infile) or return 0;
+	my $out = new IO::File;
+	$out->open($outfile,">") or return 0;
+
+	while(<$in>){
+		my $skipline=0;
+		if(/^#if ([01])\s*\/\*\s*patchouli\s+(.*\S)\s*\*\/\s*$/o){
+			$iflevel++;
+			if($leaveuntouched && $patchnum{$2} > $level) {
+				# do nothing, $inannotation and $skipline 0
+			} else {
+				if($inannotation){
+					die "$infile: $.: only one level of nesting annotations currently supported\n" if($nestedendlevel>=0);
+					$nestedendlevel=$endlevel;
+					$nestedshow=$show;
+				}
+				$endlevel = $iflevel-1;
+				if(!exists($patchnum{$2})){
+					warn "$infile: $.: ".
+						"unknown patch name '$2'\n";
+					$show = 0;
+				} else {
+					$show = ($patchnum{$2} <= $level);
+				}
+				$show=!$show if($1==0);
+				$show=0 if($nestedendlevel>=0 && !$nestedshow);
+				$inannotation = 1;
+				$skipline = 1;
+			}
+		} elsif(/^(.*)\/\*\*\*\s*patchouli\s+(.*\S)\s*\*\*\*\/\s*$/o){
+			# An alternative single-line annotation with comment,
+			# useful for adding an #if/#endif/#else/#elif.
+			if(!exists($patchnum{$2})){
+				warn "$infile: $.: unknown patch name '$2'\n";
+			} else {
+				$skipline = ($patchnum{$2} > $level);
+				$_ = $1."\n";
+			}
+			# TODO: add a similar annotation for deletion of a
+			# single line.
+		} elsif(/^#if/o){
+			$iflevel++;
+		} elsif(/^#endif/o){
+			$iflevel--;
+			if($inannotation && $iflevel==$endlevel){
+				if($nestedendlevel>=0){
+					$endlevel = $nestedendlevel;
+					$show = $nestedshow;
+					$nestedendlevel = -1;
+					# leave $inannotation = 1.
+				} else {
+					$inannotation = 0;
+				}
+				$skipline = 1;
+			}
+		} elsif(/^#else/o){
+			if($inannotation && $iflevel==($endlevel+1)){
+				$show = !$show;
+				$show=0 if($nestedendlevel>=0 && !$nestedshow);
+				$skipline = 1;
+			}
+		}
+		if ($skipline || ($inannotation && !$show)){
+			print $out "\n" if $blanklines;
+		} else {
+			print $out $_;
+		}
+	}
+	$in->close();
+	$out->close();
+}
+
+# Create a ".before" and ".after" directory for a given patch name.
+sub createbeforeafter {
+        my $patchname = shift;
+	my $patchnumber = $patchnum{$patchname};
+	rmtree(".before");
+	rmtree(".after");
+	foreach my $file (@files){
+		my $before = ".before/".$file;
+		my $after = ".after/".$file;
+		mkpath(dirname($before));
+		mkpath(dirname($after));
+		createpatchlevel($file, $before, $patchnumber-1, 0, 0);
+		createpatchlevel($file, $after, $patchnumber, 0, 0);
+	}
+}
+
+# Create one patch file 00*.patch for a given patch-level
+sub createonepatch {
+	my $patchname = shift;
+	return if($#breaks >= 0 && $patchnum{$patchname} > $breaks[0]);
+	createbeforeafter($patchname);
+	my $patchfile = sprintf("%04d", $patchnum{$patchname})."-".$patchname.
+		".patch";
+	open(PATCH, ">$patchfile");
+	my $npatches = $#breaks>=0 ? $breaks[0] : $#patchnames+1;
+	my $ipatch = sprintf("%0*d", int(log($npatches)/log(10)+1),
+			$patchnum{$patchname});
+	my $numbering = $npatches>1 ? " $ipatch/$npatches" : "";
+	print PATCH "Subject: [PATCH$numbering] ".
+		($pref ? "$pref: " : "").
+		$patchtitles[$patchnum{$patchname}-1]."\n\n";
+	print PATCH $patchdescs[$patchnum{$patchname}-1];
+	print PATCH "\n\n";
+	print PATCH "$sig\n---\n";
+	close(PATCH);
+
+	# Write the patch file to a separate temporary file. We later built
+	# the final patch file by prepending a run of "diffstat" (which
+	# summarizes the number of changes).
+	my $tmp = ".tmp-patch";
+	# TODO: replace these system with >,>> by a list-based exec (or system)
+	# so we don't have problems with file names with single quotes!
+	system(">$tmp");
+	foreach my $file (@files) {
+		system("diff -up '.before/$file' '.after/$file' >>$tmp");
+	}
+	open(PATCH, ">>$patchfile");
+	open(DIFFSTAT, "diffstat -p 1 -w 70 $tmp|");
+	print PATCH while(<DIFFSTAT>);
+	close(DIFFSTAT);
+	print PATCH "\n";
+	open(TMP, "<$tmp");
+	print PATCH while(<TMP>);
+	close(TMP);
+	unlink($tmp);
+	close(PATCH);
+
+	# TODO: warn about empty patches created
+	print "Created $patchfile\n";
+}
+
+# Create patch files 00*.patch for all patch-levels
+sub createallpatches {
+	foreach my $patchname (@patchnames){
+		createonepatch($patchname);
+	}
+	rmtree(".before");
+	rmtree(".after");
+}
+
+####################################################################
+# Verify that all changes from a given master-version are covered by
+# annnotations.
+####################################################################
+
+# compare patch-level 0 to the base version (if available), and see that it's
+# identical.
+sub comparebase {
+	print "Verifying patch coverage: (that all modification since ".
+		"$base[0] '$base[1]'\nare explained by some patch)\n";
+	my $ret=0;
+	foreach my $file (@files){
+		my $tmp = ".patchouli-level0"; # TODO: use /tmp
+		createpatchlevel($file, $tmp, 0, 0, 0);
+		if($base[0] eq "dir"){
+			system("diff -up $base[1]/$file $tmp");
+			$ret=1 if $?;
+		} elsif($base[0] eq "git"){
+			# TODO: the output of this looks terrible.
+			# I need to find a way for git diff to diff a given
+			# version with a file on the filesystem...
+			print "Verifying $file\n";
+			my $tmp2 = ".git-$base[1]"; # TODO: use /tmp
+			system("git show $base[1]:$file > $tmp2 2>/dev/null");
+			if($?){
+				if(-s $tmp){
+					warn " - does not exist in git '$base[1]', and yet file is not empty before patches.\n";
+					$ret=1;
+				}
+			} else {
+				system("diff -up $tmp2 $tmp");
+				$ret=1 if $?;
+			}
+			unlink($tmp2);
+		} else {
+			warn "Unknown base method '$base[0]' in configuration.\n";
+		}
+		unlink($tmp);
+	}
+	return $ret;
+}
+
+####################################################################
+# Try to compile all or some intermediate revisions
+####################################################################
+
+# save and restore the annotated sources
+sub savesources {
+	print "Temporarily moving annotated source code to: .patchoulisave\n";
+	if(-e ".patchoulisave"){
+		die ".patchoulisave already exists...\n";
+	}
+	foreach my $file (@files){
+		my $save = ".patchoulisave/".$file;
+		mkpath(dirname($save));
+		rename $file, $save or die "could not move $file to $save";
+	}
+}
+sub restoresources {
+	print "Restoring annotated source code from: .patchoulisave\n";
+	if(!-e ".patchoulisave"){
+		die ".patchoulisave doesn't exist...\n";
+	}
+	foreach my $file (@files){
+		my $save = ".patchoulisave/".$file;
+		rename $save, $file or warn "could not move $save to $file";
+		# Unfortunately, we may restore the sources but leave behind
+		# compilation products of a different version. Since I don't
+		# know how to remove the compilation products, I need to
+		# touch the source... TODO: think how to fix this better.
+		system "touch $file";
+	}
+	rmtree(".patchoulisave");
+}
+
+# Replace the source files from those with the given patch-level applied
+# and deleted lines replaced by blank lines (so as to keep the same line
+# numbers with the annotated code).
+sub restoretopatchlevel {
+        my $patchlevel = shift;
+	print "Switching source code to patch-level $patchlevel\n";
+	-e ".patchoulisave" or die ".patchoulisave doesn't exist...\n";
+	foreach my $file (@files){
+		my $save = ".patchoulisave/".$file;
+		createpatchlevel($save, $file, $patchlevel, 1, 0);
+	}
+}
+
+sub docompile {
+	my $i = shift;
+	restoretopatchlevel($i);
+	print "Trying to compile patch-level $i (";
+	for(my $j=0; $j<$i; $j++){
+		print ", " if($j>0);
+		print "$patchnames[$j]";
+	}
+	print ")\n";
+	system($compilecheck);
+	return $?;
+}
+
+
+sub compileall {
+	if (-e ".patchoulisave"){
+		print "Found saved annotated source from previous run. Restoring.\n";
+		restoresources();
+	}
+	savesources();
+	for(my $i=0; $i<=$#patchnames+1; $i++){
+		if(docompile($i)){
+			restoresources();
+			die "COMPILATION FAILED!\n";
+		}
+	}
+	restoresources();
+}
+
+sub compileone {
+	my $i = shift;
+	if (-e ".patchoulisave"){
+		print "Found saved annotated source from previous run. Restoring.\n";
+		restoresources();
+	}
+	savesources();
+	docompile($i);
+	restoresources();
+}
+
+####################################################################
+# Create a git branch instead of patch files
+####################################################################
+sub createbranch {
+	my $branch = shift;
+	if($base[0] ne "git"){
+		die "This only works when base is set to 'git'\n";
+	}
+	if($branch eq ""){
+		die "Missing branch name\n";
+	}
+
+	if(comparebase()){
+		die "Error: State before patches (according to the annotations) is not identical to the base. See details above.\n";
+	}
+	print "Verification complete successfully.\n";
+
+	if (-e ".patchoulisave"){
+		die "Found saved annotated source from previous run.\n";
+	}
+	savesources();
+
+	system("git checkout -b $branch $base[1]");
+	if($?){
+		restoresources();
+		die;
+	}
+	
+	for(my $patchlevel=1; $patchlevel<=$#patchnames+1; $patchlevel++){
+		print "Switching source code to patch-level $patchlevel\n";
+		foreach my $file (@files){
+			my $save = ".patchoulisave/".$file;
+			createpatchlevel($save, $file, $patchlevel, 0, 0);
+		}
+		my $author = $sig;
+		$author =~ s/^Signed-off-by: //;
+		$author =~ s/'/'\\''/og;
+		my $message = "$patchtitles[$patchlevel-1]\n\n$patchdescs[$patchlevel-1]";
+		$message =~ s/'/'\\''/og;
+		system("git commit -a --author='$author' -m '$message'");
+
+	}
+	# We don't actually need to restoresources() in this branch. They
+	# are in the original branch we started on. Hopefully (the checkout
+	# of the new branch above should not have succeed if the then-current
+	# sources were not check in).
+	rmtree(".patchoulisave");
+}
+
+
+####################################################################
+# EXPERIMENTAL CODE - works, but it isn't clear it is very useful in practice.
+####################################################################
+# "Accept" some of the patches, deleting their annotations and leaving behind
+# their modified state. Because patches are normally assumed to be applied
+# in order, it normally only makes sense to accept the first several patches
+# (and not patches from the middle of the list). Obviously, the user can
+# change the patch order to make this so.
+####################################################################
+
+sub acceptpatchlevel {
+        my $patchlevel = shift;
+	print "Accepting patches: ";
+	for(my $j=0; $j<$patchlevel; $j++){
+		print ", " if($j>0);
+		print "$patchnames[$j]";
+	}
+	print "\n";
+	print "NOTE: This will modify your source files, as if these patches ";
+	print "have been applied\nand their annotations removed. Are you ";
+	print "really sure you want to do this (y/N)?\n";
+	chomp(my $answer = <STDIN>);
+	if(!(lc($answer) eq "y")){
+		print "Operation cancelled.\n";
+		return;
+	}
+	foreach my $file (@files){
+		createpatchlevel($file, $file.".applied", $patchlevel, 0, 1);
+		rename $file, $file.".orig" or die "could not move $file to $file.orig";
+		rename $file.".applied", $file or die "could not move $file.applied to $file";
+		print "wrote $file, saved original in $file.orig\n";
+	}
+}
+
+# compare patch-level 0 to the current version; Useful for creating a patch
+# which includes the patchouli tags, without assuming that the base version
+# (patch-level 0) is stored in the version control.
+sub comparecurrent {
+	my $ret=0;
+	foreach my $file (@files){
+		my $tmp = ".patchouli-level0"; # TODO: use /tmp
+		createpatchlevel($file, $tmp, 0, 0, 0);
+		system("diff -up $tmp $file");
+		$ret=1 if $?;
+		unlink($tmp);
+	}
+	return $ret;
+}
+
+
+#########################################################################
+
+my %opts;
+getopts('lc:Cb:A:p', \%opts);
+
+if(exists $opts{l}){
+	my $i=0;
+	foreach (@patchnames) {
+		++$i;
+		print "$i $_\n";
+	}
+}
+
+if(exists $opts{C}){
+	compileall();
+} elsif(exists $opts{c}){
+	compileone($opts{c});
+} elsif(exists $opts{b}){
+	createbranch($opts{b});
+} elsif(exists $opts{A}){
+	acceptpatchlevel($opts{A});
+} elsif(exists $opts{p}){
+	comparecurrent();
+} else {
+	createallpatches();
+	if(comparebase()){
+		die "Error: State before patches (according to the annotations) is not identical to the base. See details above.\n";
+	} else {
+		print "Verification successful.\n";
+	}
+}
+

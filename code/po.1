@@ -1,0 +1,336 @@
+.TH PO 1 "2013 Feb 21" "Patchouli 1.0" ""
+.SH NAME
+po - Patchouli, tool for generating patches from annotated source code.
+.SH SYNOPSIS
+.B po
+.br
+.B po \-C
+.br
+.B po \-c
+.I level
+.br
+.B po \-b
+.I name
+.br
+.B po \-A
+.I level
+.br
+.B po \-p
+.SH DESCRIPTION
+Patchouli is a tool for easily creating and maintaining a set of source
+code patches, while continuing to normally edit, compile, and do version
+control of the project as one whole.
+
+The basic idea behind
+.B Patchouli
+is that as the source code is modified, the programmer annotates 
+each modification as belonging to a certain patch
+(see SOURCE CODE ANNOTATIONS below). The programmer can
+continue to normally view, edit, compile, and run the source code with its
+embedded annotated modifications. Additionally, the programmer specifies
+the order of these annotations and can describe them (see CONFIGURATION FILE
+below).
+
+Then at any point, the entire patch set can be created automatically from
+these annotations, by running the
+.B po
+tool described in this manual.
+
+Patchouli is especially useful in projects where maintainers expect big changes
+to be broken down to many small patches, each easier to explain and to
+review. The programmer would still like to work on the source code as
+a whole (and not on individual patches), and to be able to easily regenerate
+the patch set if they need to be resubmitted (e.g., after comments from the
+maintainer, changes to the base project, and so on).
+
+.SH SOURCE CODE ANNOTATIONS
+As explained above, Patchouli uses
+.I annotations
+inserted in the source code which mark modifications, and say which modification
+belongs to which patch.
+.PP
+The annotations not only mark the modifications, they also need to ensure
+that the code can be compiled as if all the patches have been applied to
+it. I.e., lines that are marked as added need to be compiled in, while lines
+that are marked as deleted need to be ignored. The annotations format shown
+below indeed satisfies this requirement.
+.PP
+Patchouli currently supports annotations using C preprocessor directives.
+These are useful for C and C++ language code. The following annotations are
+supported. In the code examples below, ordinary text is pre-modification code,
+while the bold text is the new source-code lines and their annotation.
+.TP
+Add lines (in patch named "comment"):
+
+.nf
+int square(int n){
+\fB#if 1 /* patchouli comment */\fR
+\fB  /* square n */\fR
+\fB#endif\fR
+  return n*n;
+}
+.fi
+.TP
+Delete lines:
+
+.nf
+int triple(int n){
+\fB#if 0 /* patchouli remove printouts */\fR
+\fB  printf("tripling %d\n", n);\fR
+\fB#endif\fR
+  return 3*n;
+}
+.fi
+.TP
+Replace lines:
+
+One can replace lines with two separate annotations, marking the deletion of
+the old lines and then marking the new lines, but a more compact (and natural)
+representation is available:
+
+.nf
+int square(int n){
+\fB#if 1 /* patchouli algorithm */\fR
+\fB  return n*n;\fR
+\fB#else\fR
+  return 2*n;
+\fB#endif\fR
+}
+.fi
+
+Or, alternatively,
+
+.nf
+int square(int n){
+\fB#if 0 /* patchouli algorithm */\fR
+  return 2*n;
+\fB#else\fR
+\fB  return n*n;\fR
+\fB#endif\fR
+}
+.fi
+.TP
+Undone modifications:
+
+In some cases, it is necessary for one patch to make modifications which are
+later undone (or further modified) by a second patch. This is needed if,
+for example, the program needs to compile after each individual patch is
+applied. Such transient modifications can be specified using
+\fInested\fR annotations:
+
+.nf
+\fB#if 0 /* patchouli patch2 */\fR
+\fB#if 1 /* patchouli patch1 */\fR
+\fB/* this code is added in patch1, but removed again in patch2 */\fR
+\fB#endif\fR
+\fB#endif\fR
+.fi
+
+Note how the outer annotation describes the later modification: The
+the line is removed in patch2 and therefore doesn't exist in the
+final patched code, so the outer "#if 0" makes sure it isn't compiled.
+
+As another example, the following annotations replace the function name
+"try1" in the original code with "try2" in the first patch, and then
+again renames it to "try3" in the second patch:
+
+.nf
+\fB#if 0 /* patchouli second */\fR
+\fB#if 0 /* patchouli first */\fR
+int try1(){
+\fB#else\fR
+\fBint try2(){\fR
+\fB#endif\fR
+\fB#else\fR
+\fBint try3(){\fR
+\fB#endif\fR
+.fi
+.TP
+Nested modifications:
+
+Another use for nested annotations is a shortcut for adding new lines in the
+middle of a block of lines already added by a previous modification.
+For example, consider we already have a patch adding two lines:
+
+.nf
+\fB#if 1 /* patchouli patch1 */\fR
+\fBline1\fR
+\fBline2\fR
+\fB#endif\fR
+.fi
+
+And now we want to create a second patch, patch2, which adds a new line
+between these "line1" and "line2". The long way is to split up the original
+annotation:
+
+.nf
+\fB#if 1 /* patchouli patch1 */\fR
+\fBline1\fR
+\fB#endif\fR
+\fB#if 1 /* patchouli patch2 */\fR
+\fBadded in the middle\fR
+\fB#endif\fR
+\fB#if 1 /* patchouli patch1 */\fR
+\fBline2\fR
+\fB#endif\fR
+.fi
+
+We can use nested annotations for a shorter and perhaps more readable
+description of the same change:
+
+.nf
+\fB#if 1 /* patchouli patch1 */\fR
+\fBline1\fR
+\fB#if 1 /* patchouli patch2 */\fR
+\fBadded in the middle\fR
+\fB#endif\fR
+\fBline2\fR
+\fB#endif\fR
+.fi
+
+Note that currently, 
+.B po
+is limited only to a single level of annotation nesting (i.e., the above
+examples are supported, but deeper level of nesting isn't).
+
+.TP
+Modifying C preprocessor directives:
+
+Above we showed the usual way of annotating changes, using C preprocessor
+directives. Unfortunately, if the change we're trying to annotate is a
+single #if, #else, #elif or #endif, we can't annotate it with our usual
+annotations. As an example, consider the following ill-attempt to add an "#else" to
+an existing #if:
+
+.nf
+#if something
+    dosomething;
+\fB#if 1 /* patchouli patch */\fR
+\fB#else\fR
+\fB    somethingelse;\fR
+\fB#endif\fR
+#endif
+.fi
+
+This is wring, because when the compiler reads this code, it wrongly treats
+the "#else" as referring to the Patchouli annotation, not the "#if something"
+it was supposed to refer to.
+
+Therefore, for this use-case we have an alternative annotation method,
+which uses a comment at the end of the line which marks its addition in some
+patch. The following is the right way to do what we tried to do above:
+
+.nf
+#if something
+    dosomething;
+\fB#else/***patchouli patch***/\fR
+\fB#if 1 /* patchouli patch */\fR
+\fB    somethingelse;\fR
+\fB#endif\fR
+#endif
+.fi
+.PP
+The patch names used in these annotations can be chosen arbitrarily, but they
+need to be also listed in the
+.B PATCHOULI
+configuration file, as described in the next section. Patch names may include
+any characters except slash ("/"), newline or null.
+
+In particular, patch names with spaces in them are fine.
+However, please note that leading or trailing spaces
+in the patch names are not considered part of the patch name, and are ignored,
+and in general extraneous white space in annotation lines are ignored.
+For example, the following lines, with "_" representing a space, all fine,
+and behave identically:
+.fi
+
+    #if_1_/*_patchouli_name_*/
+    #if_1_/*__patchouli_name_*/
+    #if_1_/*_patchouli_name__*/
+    #if_1_/*_patchouli__name_*/
+    #if_1_/*patchouli_name*/
+    #if_1/*_patchouli_name_*/
+.fi
+
+.SH CONFIGURATION FILE
+The source code annotations described above determine which modification goes
+into which patch file, but to actually create these patch files, the
+.B po
+tool needs additional information, which should be written in a file called
+"\fBPATCHOULI\fR" in the top directory of the project, where
+.B po
+will be run.
+
+This section lists the various configuration commands available. Specifying
+at least one
+.B patch
+and at least one
+.B file
+is mandatory,
+
+.TP
+\fBpatch\fR
+po needs to know the
+.I order
+of the patches, because patch files refer to specific line numbers and to
+specific contexts, so the order in which they will be applied matters.
+
+The order of the
+.B patch
+commands in the PATCHOULI file determines the patch order. Each command
+specifies a patch name (the name used in the annotations), a one-line
+description of the patch and an optional long description. The descriptions
+are used when creating the patch files - the one-line description is used
+as the subject of the patch file (assuming it will be mailed), and the
+long description is put after the subject line, and before the actual content
+of the patch.
+
+A
+.B patch
+command is formatted like this:
+.nf
+
+  \fBpatch\fR name: short description
+   first line of long description
+   second line of long description
+
+.fi
+Each line in the long description must start with a whitespace, because the
+next line not starting with a whitespace is considered to start a new
+configuration command. In particular, even a blank line in the long
+description needs to be a line with a single white space, otherwise it is
+considered to end the descption.
+
+
+.SH FILES
+.TP
+\fR./PATCHOULI
+explain here
+.TP
+\fR0*.patch
+explain here
+.TP
+\fR.tmp-patch, .patchouli-level0, .git-*
+explain here
+.SH "EXIT STATUS"
+.SH COPYRIGHT
+Copyright (C) 2010-2013 IBM Corp.
+Copyright (C) 2013 Nadav Har'El <nyh@math.technion.ac.il>
+
+Patchouli is based on an original idea proposed by Abel Gordon.
+
+Patchouli is based on original source code written by Nadav Har'El while
+an IBM employee. This code is copyright (C) 2010-2013 IBM Corp., and is used
+in Patchouli with permission. However, IBM is not the owner or maintainer of
+this Patchouli, does not endorse it, or has any other connection with
+Patchouli. All comments, suggestions, questions or claims regarding
+Patchouli should be referred to Nadav Har'El directly.
+
+Patchouli is free software, released under the Apache License v2.
+There is no warranty of any kind.
+.SH ACKNOWLEDGMENTS
+.SH "SEE ALSO"
+.BR diff (1),
+.BR patch (1),
+.BR git (1),
+.BR cpp (1)

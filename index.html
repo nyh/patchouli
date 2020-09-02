@@ -1,0 +1,69 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<HTML><HEAD><TITLE>Patchouli patch creator</TITLE>
+<META http-equiv=Content-Type content="text/html; charset=iso-8859-1">
+<LINK title=Patchouli href="patchouli.css" type=text/css rel=stylesheet>
+</HEAD>
+<BODY>
+<TABLE class=header cellSpacing=8 cellPadding=0 width="100%" border=0>
+  <TBODY>
+  <TR>
+    <TD>
+      <H1>Patchouli &mdash; patch creator</H1>
+    </TD>
+    </TR></TBODY></TABLE>
+
+<BLOCKQUOTE>
+      <P class=noindent><B>Patchouli</B> is a simple tool for extracting a set of patches from annotated source code.</P>
+<P class=noindent>
+The user edits and compiles the source code normally, but <I>annotates</I>
+(using C-preprocessor directives)
+newly added lines and other modifications as belonging to a certain patch.
+At any point the entire patch set can be created automatically.
+</P>
+<P class=noindent>
+<B>Patchouli</B> is especially useful in projects where maintainers expect big
+changes to be broken down to many small "stages", each easier to understand.
+The programmer would still like to work on the source code as a whole.
+</P>
+<P class=noindent>
+<B>Patchouli</B> was written by <A HREF="http://nadav.harel.org.il/">Nadav Har'El</A>
+based on an original idea proposed by <A HREF="http://researcher.watson.ibm.com/researcher/view.php?person=il-ABELG">Abel Gordon</A>.
+</P>
+</BLOCKQUOTE>
+
+<H3>Patchouli features:</H3>
+<UL>
+ <LI>Work with the whole source code, not on individual patches.
+ <LI>Source code is always ready to compile and includes all patches.
+ <LI>Splitting a patch, moving changes from one patch to another, and so on, is very easy.
+ <LI>Continue to use revision control on the source code normally, to track modifications and allow multiple programmers to cooperate. Compare this to patch generation tools which keep each patch as a revision,
+preventing you from using revisions normally.
+ <LI>Make it easy to generate well-formed and well-documented patches intended for code review.
+ <LI>Make it easy to send these patches to a mailing list.
+ <LI>Option to verify that all patch levels of the source code compile.
+</UL>
+<H3>Documentation:</H3>
+<UL>
+  <LI><A HREF="po.1.html">po(1) manual page</A>
+</LI></UL>
+<H3>Download:</H3>
+<BLOCKQUOTE>
+<P class=noindent>
+<B>Patchouli</B> is based on original source code written by Nadav Har'El
+while an IBM employee. This code is copyright &copy; 2010-2013 IBM Corp.,
+and used in Patchouli with permission. However, IBM is not the owner
+or maintainer of Patchouli, does not endorse it, is not directly receiving
+any code contributed to this project, or has any other connection with this
+project. All comments, suggestions, contributions, questions or claims
+regarding Patchouli should be referred to <A HREF="mailto:nadav@harel.org.il">Nadav Har'El</A> directly.<P>
+<P class=noindent>
+<B>Patchouli</B> released as <B>free software</B> under the <A HREF="http://www.apache.org/licenses/LICENSE-2.0.html">Apache License v2</A>.
+
+</P>
+</BLOCKQUOTE>
+<UL>
+  <LI><A HREF="code/po">po</A>, the Patchouli script for generating and verifying patches.
+  <LI><A HREF="code/po.1">po.1</A>, the manual page (see HTML version above).
+  <LI><A HREF="code/sendpatches">sendpatches</A>, a separate script for sending patches to a mailing list.
+</LI></UL>
+</BODY></HTML>

@@ -1,0 +1,358 @@
+BODY {
+	color: #111111;
+        background-color: #FFFFFF;
+	margin-left: 50px;
+	margin-right: 50px; 
+	margin-top: 50px; 
+	margin-bottom: 50px; 
+}
+
+/* NOTE: every "a" here should really be a[href], i.e., only a tags with
+   a href parameter - but it appears that IE does not support this
+   feature... So I'll just use plain a, for the poor saps using IE...
+*/
+A:link { color: #0000DD; text-decoration: underline; font-weight: normal }
+A:visited { color: #0000DD; text-decoration: underline; font-weight: normal }
+/*A:active { background: #FFFFCC; }*/
+/* this is nice, but in mozilla 1.4.2 causes images to "dance" by one pixel
+   when hovered on. Eek. Also, the fact we use A:hover and not A[href]:hover
+   causes A NAME's to also act on this when hovered... Double eek. */
+/*A:hover { text-decoration: underline; }*/
+
+H1 {
+	font-size: 2em;
+	font-weight: bold;
+	font-style: normal;
+	font-family: "nimbus roman", "times new roman", "utopia", "charter", "century schoolbook", serif;
+	color: #003399;
+	text-align: center;
+        margin-top: 2ex;
+	margin-bottom: 2ex;
+	font-variant: small-caps;
+}
+/* note that in H1.small margin-top is 2ex, twice that in H1, because the font
+   is half the size
+ */
+H1.small, H1.subtitle {
+	font-size: 1.5em;
+	font-weight: bold;
+        font-style: normal;
+	margin-top: 2ex;
+}
+H1.subtitle { color: #FF3877; }
+H1.nospace { margin: 0pt; }
+
+/* for a subtitle span inside an h1 */
+H1 SPAN.subtitle { 
+  font-size: 0.5em; /* half size */
+  font-weight: bold;
+  font-style: normal;
+  color: #FF3877;
+}
+
+/* small space between H1 and H1.small */
+H1 + H1.small { margin-top: -4ex }
+H1.small + H1 { margin-top: -1ex }
+
+H1 + H1.subtitle { margin-top: -4ex }
+H1.subtitle + H1 { margin-top: -1ex }
+
+H2 {
+	color: #0055AA;
+	font-size: 1.5em;
+	font-weight: bold;
+	font-family: "nimbus sans", "arial", sans-serif;
+	line-height: 1;
+	text-indent: 0em;
+	margin-top: 2ex;
+	margin-bottom: 0.5ex;
+}
+H3 {
+	color: #000044;
+	font-size: 1.1em;
+	font-weight: bold;
+	font-family: "nimbus sans", "arial", sans-serif;
+	line-height: 1;
+	text-indent: 0em;
+	margin-top: 2.0ex;
+	margin-bottom: 0.0ex;
+}
+P {
+	text-indent: 1em;
+	text-align: justify;
+	margin-top: 0.3em;
+	margin-bottom: 0.3em;
+	/*line-height: 1.05;*/ /* a little (but only a little) more space */
+}
+BLOCKQUOTE {
+	margin-left: 40px;
+	margin-right: 40px;
+	text-align: justify;
+	border-bottom: solid #AAAADD;
+	border-top: solid #AAAADD;
+	padding: 2px 4px;
+	border-width: 1px;
+	background: #F5F5FF;
+}
+B.extra { color: #CC0000; }
+
+UL {
+	text-align: justify;
+	list-style: url("images/black.gif") disc;
+}
+LI {
+	margin-top: 0.8ex;
+	margin-bottom: 0.8ex;
+}
+/* TODO: originally I had here (and in other places) .main > H2, but it
+   appears that in IE 6 that doesn't work (it does work in Mozilla, Konqueror
+   and Opera). So I removed the ">", for the poor saps who use IE...
+*/
+
+/* LI in a UL with class=compact (or itself with class=compact, but that isn't
+   too useful) gets special treatment. Similarly for class=large */
+.compact LI, LI.compact {
+	list-style: disc;
+	margin-top: 0.1ex;
+	margin-bottom: 0.1ex;
+}
+.large LI, LI.large {
+	font-size: 1.5em;
+	font-weight: bold;
+	font-style: italic;
+
+}
+/* TODO: give special look to UL inside UL, and so on. */
+
+/* useful for H1, H2, etc. */
+.nomargin-top { margin-top: 0ex; }
+/* useful for making spacing using div */
+.vspace6ex { margin-top: 6ex; margin-bottom: 0; }
+.vspace4ex { margin-top: 4ex; margin-bottom: 0; }
+.vspace2ex { margin-top: 2ex; margin-bottom: 0; }
+/* useful for P */
+.noindent { text-indent: 0em; }
+.normalP { text-indent: 0em; text-align: left; }
+/* P:before { content: "hello" } */
+/* interesting trick to foil spammers: <SPAN class=at> instead of @
+.at:before { content: "@"; } */
+
+/*old try: 
+  .leftmargin {position: absolute; left:10px; top: auto;}
+*/
+/* Put something (such as a picture) with class=leftmargin for it to be a
+   float on the left margin (text will nicely wrap around it).
+*/
+.leftmargin {
+	float: left;
+	margin-left: -135px;
+	margin-right: 4px;
+	margin-bottom: 4px;
+}
+.rightmargin {
+	float: right;
+	margin-right: -135px;
+	margin-left: 4px;
+	margin-bottom: 4px;
+}
+/* instead of TD.eftmargin, we really nead caption.eftmargin, but unfortunately
+   mozilla 0.9.2 does not support caption-side: yet, so CAPTION.eftmargin
+   doesn't work....
+   CAPTION.eftmargin is the proper way to go for the photo album captions,
+   but we use .leftcaptrick for now instead... :( Add margin-top: 80px (for
+   example) to get the caption further down.
+*/
+CAPTION.eftmargin {
+	caption-side: left;
+	margin-left: -135px;
+	width:100px;
+	text-align: right;
+	vertical-align: middle;
+	color: #AAAAAA;
+	font-size:3em;
+}
+.leftcaptrick {
+	float: left;
+	margin-left: -135px;
+	color: #AAAAAA;
+	font-size:1.2em;
+	width:105px;
+	text-align: right;
+}
+
+/* right float image (see, for example reading.html, music.html) */
+IMG.rightfloat {
+	float: right;
+	margin-left: 5px; margin-top: 5px; margin-bottom: 5px;
+}
+IMG.topleftfloat {
+	float: left;
+	margin-right: 6px; margin-bottom: 6px;
+}
+IMG.toprightfloat {
+	float: right;
+	margin-left: 5px; margin-bottom: 5px;
+}
+
+/* nice border for pictures */
+IMG.bordered { 
+  padding: 6px;
+  margin: 0px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: #000000;
+  background-color: #FFFFFF;
+}
+IMG.borderedrightfloat {
+  float: right;
+  margin-left: 5px; margin-top: 5px; margin-bottom: 5px;
+  padding: 6px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: #000000;
+  background-color: #FFFFFF;
+}
+IMG.noborder { 
+  padding: 0px;
+  border-width: 0px;
+  border-color: #000000;
+}
+
+/* fix stuff for printing, so my pages print nicer.
+   For example, printing in a shade of dark gray is not good - black is better.
+   Fat margins and big fonts are a terrible waste on paper.
+
+   I still have some experimenting: how to make pictures smaller? How to get
+   my homepage to print properly? (the doggie page prints on Mozilla nicely
+   except a few bugs. Konqueror prints nicely but seems to ignore the settings
+   here or something).
+*/
+@media print {
+	BODY { overflow: visible; margin-left: 0px; margin-right: 0px; margin-top: 0px; margin-bottom: 0px; color: black; font-size: 11pt;}
+	B { color: black; }
+}
+
+/**************/
+.menu {
+        background: #EEEEFF;
+        border: 1px solid black;
+        padding: 0 0 0;
+        border-top: none;
+        border-right: none;
+        border-left: none;
+        font-size: 130%;
+        font-family: sans-serif;
+        font-weight: bold;
+        padding-top: 5px;
+        padding-bottom: 5px;
+}
+.menu a {
+        border-right: solid black 1px;
+        padding-left: 1em;
+        padding-right: 1em;
+        text-decoration: none;
+}
+
+.menu a.this:link { color: #a00; background: #f4f4ff; border: outset #9999ee 2px; sensitive: none; font-style: normal; }
+.menu a.this:visited { color: #a00; background: #f4f4ff; border: outset #9999ee 2px; font-style: normal; }
+.menu a.this:active { color: #a00; font-style: normal; }
+.menu a.this:hover { color: #a00; text-decoration: none; font-style:normal; }
+
+.menu a:link { color: #00f; font-style: normal; }
+.menu a:visited { color: #00f; font-style: normal; }
+.menu a:active { color: #00f; font-style: normal; }
+.menu a:hover { color: #00a; text-decoration: underline; }
+
+H1, .menu {
+	margin-bottom: 0ex;
+}
+
+/*********************/
+.header H2 {
+	color: #DDDDFF;
+	font-size: 13px;
+	font-family: sans-serif;
+	font-style: normal;
+	font-weight: normal;
+	margin-top: 0px;
+	margin-bottom: 0px;
+}
+.header H1 {
+	font-size: 26px;
+	font-weight: bold;
+	font-style: normal;
+	font-family: serif;
+	color: #EEEEFF;
+        margin-top: 0px;
+	margin-bottom: 5px;
+	text-align: left;
+	font-variant: normal;
+}
+.header A:link { color: #FFFFFF; text-decoration: none; font-style: normal; font-weight: bold; }
+.header A:visited { color: #FFFFFF; text-decoration: none; font-style: normal; font-weight: bold; }
+.header A:hover { color: #FFFFFF; text-decoration: underline; font-style: normal; font-weight: bold; }
+.header {
+	background:	url("images/gr760a.gif") repeat-y left top;
+}
+
+DIV.page {
+	margin-top: 8px;
+	nargin-bottom: 8px;
+	background: #F0F0FF;
+	border: solid #D0D0DD;
+	border-width: 1px;
+	padding: 6px;
+	font-family: serif;
+}
+.page P, .page B {
+	color: #000022;
+}
+
+/**********************/
+
+/* "button" class useful for div and span. */
+.button {
+	margin: 3px;
+	margin-bottom: 10px;
+	background: #D0F5D0;
+	padding: 3px;
+	border: solid #55FF55;
+	border-width: 1px;
+	font-family: sans-serif;
+	font-size: 0.8em;
+}
+.button A:link, .button A:visited, .button A:hover {
+ 	color: #005500; text-decoration: underline; font-style: normal; font-weight: bold; }
+
+/*********************/
+
+DIV.toc {
+	margin-top: 1em;
+	margin-bottom: 1em;
+	margin-left: 10px;
+	margin-right: 10px;
+	text-align: justify;
+	padding: 4px 2px; border-width: 1px;
+	color: #000055;
+}
+DIV.toc H2 {
+	color: #000055;
+	font-size: 1em;
+	font-weight: bold;
+	font-family: serif;
+	line-height: 1;
+	text-indent: 0em;
+	margin-top: 0ex;
+	margin-bottom: 1ex;
+}
+DIV.toc OL, DIV.toc LI {
+	margin-top: 0px;
+	margin-bottom: 0px;
+}
+DIV.toc A:link, DIV.toc A:visited, DIV.toc A:hover {
+ 	color: #000055;
+	text-decoration: none;
+}
+DIV.toc A:hover {
+	text-decoration: underline;
+}
